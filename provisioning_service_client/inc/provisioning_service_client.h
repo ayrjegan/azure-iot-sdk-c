@@ -103,6 +103,16 @@ MOCKABLE_FUNCTION(, int, prov_sc_delete_individual_enrollment_by_param, PROVISIO
 */
 MOCKABLE_FUNCTION(, int, prov_sc_get_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, const char*, reg_id, INDIVIDUAL_ENROLLMENT_HANDLE*, enrollment_ptr);
 
+
+
+MOCKABLE_FUNCTION(, int, prov_sc_query_individual_enrollment, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, PROVISIONING_QUERY_SPECIFICATION*, query_spec, const char**, cont_token_ptr, PROVISIONING_QUERY_RESPONSE**, query_resp_ptr);
+
+MOCKABLE_FUNCTION(, int, prov_sc_query_enrollment_group, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, PROVISIONING_QUERY_SPECIFICATION*, query_spec, const char**, cont_token_ptr, PROVISIONING_QUERY_RESPONSE**, query_resp_ptr);
+
+MOCKABLE_FUNCTION(, int, prov_sc_query_device_registration_state, PROVISIONING_SERVICE_CLIENT_HANDLE, prov_client, PROVISIONING_QUERY_SPECIFICATION*, query_spec, const char**, cont_token_ptr, PROVISIONING_QUERY_RESPONSE**, query_resp_ptr);
+
+
+
 /** @brief  Performs a bulk operation on individual device enrollment records from the provisioning service.
 *
 * @param    prov_client     The handle used for connecting to the Provisioning Service.

@@ -120,6 +120,8 @@ MOCKABLE_FUNCTION(, const char*, enrollmentGroup_getUpdatedDateTime, ENROLLMENT_
 * Do NOT use these. They are for internal use ONLY
 */
 MOCKABLE_FUNCTION(, JSON_Value*, individualEnrollment_toJson, const INDIVIDUAL_ENROLLMENT_HANDLE, enrollment);
+MOCKABLE_FUNCTION(, INDIVIDUAL_ENROLLMENT_HANDLE, individualEnrollment_fromJson, JSON_Object*, root_object);
+MOCKABLE_FUNCTION(, ENROLLMENT_GROUP_HANDLE, enrollmentGroup_fromJson, JSON_Object*, root_object);
 
 #ifdef __cplusplus
 }

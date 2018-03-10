@@ -166,7 +166,7 @@ JSON_Value* individualEnrollment_toJson(const INDIVIDUAL_ENROLLMENT_HANDLE enrol
     return root_value;
 }
 
-static INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_fromJson(JSON_Object* root_object)
+INDIVIDUAL_ENROLLMENT_HANDLE individualEnrollment_fromJson(JSON_Object* root_object)
 {
     INDIVIDUAL_ENROLLMENT_HANDLE new_enrollment = NULL;
 
@@ -318,7 +318,7 @@ static JSON_Value* enrollmentGroup_toJson(const ENROLLMENT_GROUP_HANDLE enrollme
     return root_value;
 }
 
-static ENROLLMENT_GROUP_HANDLE enrollmentGroup_fromJson(JSON_Object* root_object)
+ENROLLMENT_GROUP_HANDLE enrollmentGroup_fromJson(JSON_Object* root_object)
 {
     ENROLLMENT_GROUP_HANDLE new_enrollment = NULL;
 

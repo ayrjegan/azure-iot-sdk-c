@@ -11,6 +11,7 @@ extern "C" {
 #include "azure_c_shared_utility/umock_c_prod.h"
 #include "azure_c_shared_utility/macro_utils.h"
 #include "provisioning_sc_enrollment.h"
+#include "provisioning_sc_query.h"
 #include "provisioning_sc_bulk_operation.h"
 
 /** @brief  Serializes an Individual Enrollment into a JSON String.
@@ -53,7 +54,7 @@ MOCKABLE_FUNCTION(, ENROLLMENT_GROUP_HANDLE, enrollmentGroup_deserializeFromJson
 */
 MOCKABLE_FUNCTION(, DEVICE_REGISTRATION_STATE_HANDLE, deviceRegistrationState_deserializeFromJson, const char*, json_string);
 
-/** @brief  Serializes an Bulk Operation into a JSON String.
+/** @brief  Serializes a Bulk Operation into a JSON String.
 *
 * @param    bulk_op      A pointer to a Bulk Operation structure
 *
@@ -63,11 +64,28 @@ MOCKABLE_FUNCTION(, char*, bulkOperation_serializeToJson, const PROVISIONING_BUL
 
 /** @brief  Deserializes a JSON String representation of a Bulk Operation Result.
 *
-* @param    json_string     A JSON String representing an Enrollment Group.
+* @param    json_string     A JSON String representing an Bulk Operation Result.
 *
 * @return   A non-NULL pointer to a Bulk Operation Result and NULL on failure.
 */
 MOCKABLE_FUNCTION(, PROVISIONING_BULK_OPERATION_RESULT*, bulkOperationResult_deserializeFromJson, const char*, json_string);
+
+/** @brief  Serializes a Query Specification into a JSON String.
+*
+* @param    query_spec      A pointer to a Query Specification structure
+*
+* @return   A non NULL string containing the serialized JSON String, and NULL on failure.
+*/
+MOCKABLE_FUNCTION(, char*, querySpecification_serializeToJson, PROVISIONING_QUERY_SPECIFICATION*, query_spec);
+
+/** @brief  Deserializes a JSON String representation of a Query Response.
+*
+* @param    json_string     A JSON String representing a Query Response.
+* @param    type            The type of model the query is being done upon
+*
+* @return   A non-NULL pointer to a Query Response and NULL on failure.
+*/
+MOCKABLE_FUNCTION(, PROVISIONING_QUERY_RESPONSE*, queryResponse_deserializeFromJson, const char*, json_string, PROVISIONING_QUERY_TYPE, type);
 
 #ifdef __cplusplus
 }

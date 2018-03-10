@@ -168,27 +168,32 @@ static void free_struct_arr(void* arr[], size_t len)
     }
 }
 
-static void** struct_array_fromJson(JSON_Array* json_arr, size_t len, FROM_JSON_FUNCTION fromJson)
+void** struct_array_fromJson(JSON_Array* json_arr, size_t len, FROM_JSON_FUNCTION fromJson)
 {
-    void** struct_arr = malloc(len * sizeof(void*));
-    if (struct_arr == NULL)
+    void** struct_arr = NULL;
+
+    if (len > 0)
     {
-        LogError("Failed to allocate memory for struct array");
-    }
-    else
-    {
-        JSON_Object* element_obj;
-        for (size_t i = 0; i < len; i++)
+        struct_arr = malloc(len * sizeof(void*));
+        if (struct_arr == NULL)
         {
-            if ((element_obj = json_array_get_object(json_arr, i)) == NULL)
+            LogError("Failed to allocate memory for struct array");
+        }
+        else
+        {
+            JSON_Object* element_obj;
+            for (size_t i = 0; i < len; i++)
             {
-                LogError("Failed to retrieve object at index %d from JSON Array", i);
-                free_struct_arr(struct_arr, i-1);
-            }
-            else if ((struct_arr[i] = fromJson(element_obj)) == NULL)
-            {
-                LogError("Failed to deserialize object at index %d from JSON Array", i);
-                free_struct_arr(struct_arr, i - 1);
+                if ((element_obj = json_array_get_object(json_arr, i)) == NULL)
+                {
+                    LogError("Failed to retrieve object at index %d from JSON Array", i);
+                    free_struct_arr(struct_arr, i);
+                }
+                else if ((struct_arr[i] = fromJson(element_obj)) == NULL)
+                {
+                    LogError("Failed to deserialize object at index %d from JSON Array", i);
+                    free_struct_arr(struct_arr, i);
+                }
             }
         }
     }

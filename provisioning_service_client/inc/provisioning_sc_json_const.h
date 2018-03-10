@@ -100,6 +100,10 @@ static const char* BULK_ENROLLMENT_OPERATION_RESULT_JSON_KEY_ERRORS = "errors";
 
 static const char* QUERY_SPECIFICATION_JSON_KEY_QUERY = "query";
 
+static const char* QUERY_RESPONSE_HEADER_ITEM_TYPE_VALUE_INDIVIDUAL_ENROLLMENT = "Enrollment";
+static const char* QUERY_RESPONSE_HEADER_ITEM_TYPE_VALUE_ENROLLMENT_GROUP = "EnrollmentGroup";
+static const char* QUERY_RESPONSE_HEADER_ITEM_TYPE_VALUE_DEVICE_REGISTRATION_STATE = "DeviceRegistrationState";
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

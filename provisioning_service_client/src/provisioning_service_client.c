@@ -43,6 +43,7 @@ typedef struct PROVISIONING_SERVICE_CLIENT_TAG
     //Connection data
     HTTP_CONNECTION_STATE http_state;
     char* response;
+    HTTP_HEADERS_HANDLE response_headers;
 
     //Connection options
     TRACING_STATUS tracing;
@@ -74,6 +75,7 @@ typedef struct HANDLE_FUNCTION_VECTOR_TAG
 #define ENROLL_GROUP_PROVISION_PATH_FMT     "/enrollmentGroups/%s"
 #define INDV_ENROLL_PROVISION_PATH_FMT      "/enrollments/%s"
 #define REG_STATE_PROVISION_PATH_FMT        "/registrations/%s"
+#define REG_STATE_QUERY_PATH_FMT            "/registrations/%s/query"
 #define INDV_ENROLL_BULK_PATH_FMT           "/enrollments/"
 #define INDV_ENROLL_QUERY_PATH_FMT          "/enrollments/query"
 #define ENROLL_GROUP_QUERY_PATH_FMT         "/enrollmentGroups/query"
@@ -164,12 +166,20 @@ else
 
 static void on_http_reply_recv(void* callback_ctx, HTTP_CALLBACK_REASON request_result, const unsigned char* content, size_t content_len, unsigned int status_code, HTTP_HEADERS_HANDLE responseHeadersHandle)
 {
-    (void)responseHeadersHandle;
     (void)content_len;
     if (callback_ctx != NULL)
     {
         PROV_SERVICE_CLIENT* prov_client = (PROV_SERVICE_CLIENT*)callback_ctx;
         const char* content_str = (const char*)content;
+
+        //attach headers to prov_client
+        if (responseHeadersHandle != NULL)
+        {
+            if ((prov_client->response_headers = HTTPHeaders_Clone(responseHeadersHandle)) == NULL)
+            {
+                LogError("Copying response headers failed");
+            }
+        }
 
         //if there is a json response
         if (content != NULL)
@@ -244,6 +254,36 @@ static HTTP_HEADERS_HANDLE construct_http_headers(const PROV_SERVICE_CLIENT* pro
     return result;
 }
 
+static int add_query_headers(HTTP_HEADERS_HANDLE headers, PROVISIONING_QUERY_SPECIFICATION* query_spec, const char* cont_token)
+{
+    int result = 0;
+
+    if (cont_token != NULL)
+    {
+        if (HTTPHeaders_AddHeaderNameValuePair(headers, HEADER_KEY_CONTINUATION, cont_token) != HTTP_HEADERS_OK)
+        {
+            LogError("Failure adding continuation token header");
+            result = __FAILURE__;
+        }
+    }
+
+    if (result == 0)
+    {
+        if (query_spec->page_size != NULL)
+        {
+            char page_size_s[21]; //21 characters covers all 64bit numbers
+            sprintf(page_size_s, "%d", *(query_spec->page_size));
+            if (HTTPHeaders_AddHeaderNameValuePair(headers, HEADER_KEY_MAX_ITEM_COUNT, page_size_s) != HTTP_HEADERS_OK)
+            {
+                LogError("Failure adding max item count header");
+                result = __FAILURE__;
+            }
+        }
+    }
+
+    return result;
+}
+
 static STRING_HANDLE create_registration_path(const char* path_format, const char* id)
 {
     STRING_HANDLE registration_path;
@@ -279,6 +319,31 @@ static STRING_HANDLE create_registration_path(const char* path_format, const cha
     }
 
     return registration_path;
+}
+
+static int get_response_headers(PROV_SERVICE_CLIENT* prov_client, const char** cont_token_ptr, const char** resp_type_ptr)
+{
+    int result = 0;
+    HTTP_HEADERS_HANDLE resp_headers = prov_client->response_headers;
+    if (resp_headers == NULL)
+    {
+        LogError("Unable to retrieve headers");
+        result = __FAILURE__;
+    }
+    else
+    {
+        if (cont_token_ptr != NULL)
+        {
+            *cont_token_ptr = HTTPHeaders_FindHeaderValue(resp_headers, HEADER_KEY_CONTINUATION);
+        }
+
+        if (resp_type_ptr != NULL)
+        {
+            *resp_type_ptr = HTTPHeaders_FindHeaderValue(resp_headers, HEADER_KEY_ITEM_TYPE);
+        }
+    }
+
+    return result;
 }
 
 static HTTP_CLIENT_HANDLE connect_to_service(PROV_SERVICE_CLIENT* prov_client)
@@ -660,6 +725,102 @@ static int prov_sc_run_bulk_operation(PROVISIONING_SERVICE_CLIENT_HANDLE prov_cl
     return result;
 }
 
+static int prov_sc_query_records(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_QUERY_SPECIFICATION* query_spec, const char** cont_token_ptr, PROVISIONING_QUERY_RESPONSE** query_res_ptr, const char* path_format)
+{
+    int result = 0;
+
+    if (prov_client == NULL)
+    {
+        LogError("Invalid Provisioning Client Handle");
+        result = __FAILURE__;
+    }
+    else if (query_spec == NULL)
+    {
+        LogError("Invalid Query");
+        result = __FAILURE__;
+    }
+    else if (cont_token_ptr == NULL)
+    {
+        LogError("Invalid Continuation Token pointer");
+        result = __FAILURE__;
+    }
+    else if (query_res_ptr == NULL)
+    {
+        LogError("Invalid Query Response pointer");
+        result = __FAILURE__;
+    }
+    else
+    {
+        char* content;
+        if ((content = querySpecification_serializeToJson(query_spec)) == NULL)
+        {
+            LogError("Failure serializing query specification");
+            result = __FAILURE__;
+        }
+        else
+        {
+            STRING_HANDLE registration_path = create_registration_path(path_format, NULL);
+            if (registration_path == NULL)
+            {
+                LogError("Failed to construct a registration path");
+                result = __FAILURE__;
+            }
+            else
+            {
+                HTTP_HEADERS_HANDLE request_headers;
+                if ((request_headers = construct_http_headers(prov_client, NULL, HTTP_CLIENT_REQUEST_POST)) == NULL)
+                {
+                    LogError("Failure constructing http headers");
+                    result = __FAILURE__;
+                }
+                else if ((add_query_headers(request_headers, query_spec, *cont_token_ptr)) != 0)
+                {
+                    LogError("Failure adding query headers");
+                    result = __FAILURE__;
+                }
+                else
+                {
+                    result = rest_call(prov_client, HTTP_CLIENT_REQUEST_POST, STRING_c_str(registration_path), request_headers, content);
+
+                    if (result == 0)
+                    {
+                        char* resp_type;
+                        char* new_cont_token;
+                        PROVISIONING_QUERY_TYPE type;
+
+                        if (get_response_headers(prov_client, &new_cont_token, &resp_type) != 0)
+                        {
+                            LogError("Failure reading response headers");
+                            result = __FAILURE__;
+                        }
+                        else if ((type = queryType_stringToEnum(resp_type)) == QUERY_INVALID)
+                        {
+                            LogError("Failure to parse response type");
+                        }
+                        else if ((*query_res_ptr = queryResponse_deserializeFromJson(prov_client->response, type)) == NULL)
+                        {
+                            LogError("Failure deserializing query response");
+                            result = __FAILURE__;
+                        }
+                    }
+                    else
+                    {
+                        LogError("Rest call failed");
+                    }
+
+                    free(prov_client->response);
+                    prov_client->response = NULL;
+                }
+                HTTPHeaders_Free(request_headers);
+            }
+            STRING_delete(registration_path);
+        }
+        free(content);
+    }
+
+    return result;
+}
+
 //Exposed functions below
 
 void prov_sc_destroy(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client)
@@ -852,6 +1013,11 @@ int prov_sc_get_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_cl
     return prov_sc_get_record(prov_client, reg_id, enrollment_ptr, getVector_individualEnrollment(), INDV_ENROLL_PROVISION_PATH_FMT);
 }
 
+int prov_sc_query_individual_enrollment(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_QUERY_SPECIFICATION* query_spec, const char** cont_token_ptr, PROVISIONING_QUERY_RESPONSE** query_resp_ptr)
+{
+    return prov_sc_query_records(prov_client, query_spec, cont_token_ptr, query_resp_ptr, INDV_ENROLL_QUERY_PATH_FMT);
+}
+
 int prov_sc_run_individual_enrollment_bulk_operation(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_BULK_OPERATION* bulk_op, PROVISIONING_BULK_OPERATION_RESULT** bulk_res_ptr)
 {
     return prov_sc_run_bulk_operation(prov_client, bulk_op, bulk_res_ptr, INDV_ENROLL_BULK_PATH_FMT);
@@ -872,6 +1038,11 @@ int prov_sc_get_device_registration_state(PROVISIONING_SERVICE_CLIENT_HANDLE pro
     return prov_sc_get_record(prov_client, reg_id, reg_state_ptr, getVector_registrationState(), REG_STATE_PROVISION_PATH_FMT);
 }
 
+int prov_sc_query_device_registration_state(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_QUERY_SPECIFICATION* query_spec, const char** cont_token_ptr, PROVISIONING_QUERY_RESPONSE** query_resp_ptr)
+{
+    return prov_sc_query_records(prov_client, query_spec, cont_token_ptr, query_resp_ptr, REG_STATE_QUERY_PATH_FMT);
+}
+
 int prov_sc_create_or_update_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
     return prov_sc_create_or_update_record(prov_client, (void**)enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
@@ -890,4 +1061,9 @@ int prov_sc_delete_enrollment_group_by_param(PROVISIONING_SERVICE_CLIENT_HANDLE 
 int prov_sc_get_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, const char* group_id, ENROLLMENT_GROUP_HANDLE* enrollment_ptr)
 {
     return prov_sc_get_record(prov_client, group_id, (void**)enrollment_ptr, getVector_enrollmentGroup(), ENROLL_GROUP_PROVISION_PATH_FMT);
+}
+
+int prov_sc_query_enrollment_group(PROVISIONING_SERVICE_CLIENT_HANDLE prov_client, PROVISIONING_QUERY_SPECIFICATION* query_spec, const char** cont_token_ptr, PROVISIONING_QUERY_RESPONSE** query_resp_ptr)
+{
+    return prov_sc_query_records(prov_client, query_spec, cont_token_ptr, query_resp_ptr, ENROLL_GROUP_QUERY_PATH_FMT);
 }
